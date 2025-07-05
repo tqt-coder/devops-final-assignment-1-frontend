@@ -1,7 +1,7 @@
 pipeline {
     agent any
     environment{
-        FULL_IMAGE = "430950558682.dkr.ecr.ap-southeast-1.amazonaws.com/devops-final-assignment-frontend:latest"
+        FULL_IMAGE = "909927813182.dkr.ecr.ap-southeast-1.amazonaws.com/devops-final-assignment-1-frontend:latest"
         TASK_DEFINITION =""
         NEW_TASK_DEFINITION=""
         NEW_TASK_INFO=""
