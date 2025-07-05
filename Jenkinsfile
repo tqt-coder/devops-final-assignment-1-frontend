@@ -1,41 +1,51 @@
 pipeline {
     agent any
-    environment{
+    environment {
         FULL_IMAGE = "909927813182.dkr.ecr.ap-southeast-1.amazonaws.com/devops-final-assignment-1-frontend:latest"
-        TASK_DEFINITION =""
-        NEW_TASK_DEFINITION=""
-        NEW_TASK_INFO=""
-        NEW_REVISION=""
-        TASK_FAMILY="frontend-task-definition"
-        CLUSTER_NAME="final-assignment-ecs-cluster"
-        SERVICE_NAME="final-assignment-fe"
+        TASK_FAMILY = "frontend-task-definition"
+        CLUSTER_NAME = "final-assignment-ecs-cluster"
+        SERVICE_NAME = "final-assignment-fe"
+        REGION = "ap-southeast-1"
     }
+
     stages {
         stage('Build') {
             steps {
                 sh 'docker build -t devops-final-assignment-1-frontend:latest .'
             }
         }
+
         stage('Upload image to ECR') {
             steps {
-                sh 'aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 909927813182.dkr.ecr.ap-southeast-1.amazonaws.com'
-                
-                sh 'docker tag devops-final-assignment-1-frontend:latest ${FULL_IMAGE}'
-                
-                sh 'docker push ${FULL_IMAGE}'
+                sh """
+                    aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin 909927813182.dkr.ecr.ap-southeast-1.amazonaws.com
+                    docker tag devops-final-assignment-1-frontend:latest $FULL_IMAGE
+                    docker push $FULL_IMAGE
+                """
             }
         }
-        
-        stage('Update task definition and force deploy ecs service') {
+
+        stage('Update ECS task and deploy') {
             steps {
-                sh '''
-                    TASK_DEFINITION=$(aws ecs describe-task-definition --task-definition ${TASK_FAMILY} --region "ap-southeast-1")
-                    NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${FULL_IMAGE}" '.taskDefinition | .containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.compatibilities) |  del(.registeredAt)  | del(.registeredBy)')
-                    NEW_TASK_INFO=$(aws ecs register-task-definition --region "ap-southeast-1" --cli-input-json "$NEW_TASK_DEFINITION")
-                    NEW_REVISION=$(echo $NEW_TASK_INFO | jq '.taskDefinition.revision')
-                    aws ecs update-service --cluster ${CLUSTER_NAME} --service ${SERVICE_NAME} --task-definition ${TASK_FAMILY}:${NEW_REVISION} --force-new-deployment
-                '''
- 
+                sh """
+                    echo "Describing current task definition..."
+                    TASK_DEF_JSON=\$(aws ecs describe-task-definition --task-definition $TASK_FAMILY --region $REGION)
+
+                    echo "Creating new task definition..."
+                    NEW_TASK_DEF=\$(echo \$TASK_DEF_JSON | jq --arg IMAGE "$FULL_IMAGE" '
+                        .taskDefinition |
+                        .containerDefinitions[0].image = \$IMAGE |
+                        del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+                    ')
+
+                    echo "Registering new task definition..."
+                    REGISTERED_DEF=\$(aws ecs register-task-definition --region $REGION --cli-input-json "\$NEW_TASK_DEF")
+
+                    REVISION=\$(echo \$REGISTERED_DEF | jq -r '.taskDefinition.revision')
+
+                    echo "Updating ECS service..."
+                    aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $TASK_FAMILY:\$REVISION --force-new-deployment
+                """
             }
         }
     }
