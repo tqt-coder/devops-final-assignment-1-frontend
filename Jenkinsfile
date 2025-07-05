@@ -13,13 +13,13 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                sh 'docker build -t final-assignment-frontend:latest .'
+                sh 'docker build -t devops-final-assignment-1-frontend:latest .'
             }
         }
         stage('Upload image to ECR') {
             steps {
                 sh 'aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 909927813182.dkr.ecr.ap-southeast-1.amazonaws.com'
-
+                    docker tag devops-final-assignment-1-frontend:latest 909927813182.dkr.ecr.ap-southeast-1.amazonaws.com/devops-final-assignment-1-frontend:latest
                 sh 'docker tag devops-final-assignment-1-frontend:latest ${FULL_IMAGE}'
                 
                 sh 'docker push ${FULL_IMAGE}'
